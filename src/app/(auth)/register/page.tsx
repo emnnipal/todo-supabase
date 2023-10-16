@@ -30,8 +30,6 @@ export default function Register() {
       },
     });
 
-    console.log("error", error);
-
     setIsLoading(false);
 
     if (error) {
@@ -39,7 +37,9 @@ export default function Register() {
       return;
     }
 
-    router.refresh();
+    alert("Please check your email to confirm your account.");
+
+    router.push(Route.Login);
   };
 
   return (
