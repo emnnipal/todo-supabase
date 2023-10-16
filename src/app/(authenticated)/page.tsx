@@ -1,16 +1,17 @@
 "use client";
 
 import { Tables } from "@/types/supabase-type-helpers";
-import { supabase } from "@/util/supabase";
 import { useCallback, useEffect, useState } from "react";
 import { useEffectOnce } from "react-use";
 import { twJoin } from "tailwind-merge";
 import { User } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
-import Cookies from "js-cookie";
-import { CookieName } from "@/constants/auth";
+import { Database } from "@/types/database.types";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
 export default function Home() {
+  const supabase = createClientComponentClient<Database>();
+
   const [list, setList] = useState<Tables<"todos">[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [user, setUser] = useState<User | null>(null);
@@ -25,7 +26,7 @@ export default function Home() {
     }
 
     setList(data);
-  }, []);
+  }, [supabase]);
 
   const fetchUser = useCallback(async () => {
     const { data } = await supabase.auth.getUser();
@@ -33,7 +34,7 @@ export default function Home() {
     if (data) {
       setUser(data.user);
     }
-  }, []);
+  }, [supabase]);
 
   useEffect(() => {
     fetchTodos();
@@ -41,7 +42,7 @@ export default function Home() {
   }, [fetchTodos, fetchUser]);
 
   useEffectOnce(() => {
-    supabase
+    const channel = supabase
       .channel("any")
       .on(
         "postgres_changes",
@@ -55,7 +56,7 @@ export default function Home() {
           }
           if (payload.eventType === "DELETE") {
             setList((prevState) =>
-              prevState.filter(({ id }) => id !== payload.old.id)
+              prevState.filter(({ id }) => id !== payload.old.id),
             );
           }
 
@@ -63,16 +64,19 @@ export default function Home() {
             setList((prevState) => {
               const newState = [...prevState];
               const index = prevState.findIndex(
-                (todo) => todo.id === payload.new.id
+                (todo) => todo.id === payload.new.id,
               );
               newState[index] = payload.new as Tables<"todos">;
               return newState;
             });
           }
-          console.log("Change received!", payload);
-        }
+        },
       )
       .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   });
 
   const add = async () => {
@@ -93,7 +97,7 @@ export default function Home() {
       .from("todos")
       .update({ is_done: state })
       .eq("id", id);
-    console.log("error", { error, data });
+
     if (error) {
       alert(error.message);
     }
@@ -106,7 +110,6 @@ export default function Home() {
       alert(error.message);
       return;
     }
-    Cookies.remove(CookieName.AccessToken);
     router.refresh();
   };
 
